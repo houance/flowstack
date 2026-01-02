@@ -89,20 +89,19 @@ public class ResticUtil {
     private static boolean isInitialized(String resticPassword, String resticRepository) {
         // build command line
         DefaultExecutor executor = DefaultExecutor.builder().get();
-        executor.setExitValues(new int[]{0, 10});
+        executor.setExitValues(new int[]{
+                ResticExitCode.SUCCESS.getCode(),
+                ResticExitCode.REPOSITORY_NOT_FOUND.getCode()
+        });
         executor.setStreamHandler(new PumpStreamHandler(OutputStream.nullOutputStream()));
         try {
             int exitCode = executor.execute(
                     CommandLine.parse("restic cat config --json"),
                     genResticEnv(resticPassword, resticRepository)
             );
-            if (exitCode == ResticExitCode.SUCCESS.getCode()) {
-                return true;
-            } else if (exitCode == ResticExitCode.REPOSITORY_NOT_FOUND.getCode()) {
-                return false;
-            } else {
-                throw new BusinessException("restic cat config 命令返回未处理退出码 %s".formatted(exitCode));
-            }
+            ResticExitCode resticExitCode = ResticExitCode.fromCode(exitCode);
+            // 不是 SUCCESS 或 REPOSITORY NOT FOUND 会走到 catch
+            return resticExitCode.equals(ResticExitCode.SUCCESS);
         } catch (IOException e) {
             throw new BusinessException("restic cat config 命令执行失败", e);
         }

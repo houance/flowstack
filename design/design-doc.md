@@ -86,8 +86,9 @@
 3. 返回 filter 下的文件和文件夹(不是递归)
 ### RCLONE 远端备份
 1. 定义一个 Rclone 远端备份节点
-2. 增量同步所有 RESTIC 仓库到远端
-### RCLONE 文件夹同步 -- 完成
+2. 接收 src_dir, sftp_connection, dst_dir 三个参数 
+3. 使用 sync 同步
+### RCLONE 本地文件夹增量同步 -- 完成
 1. 定义一个 copy 节点
 2. 接收 source_directory, dest_directory 两个参数
 3. 成功则输出/聚合 json, 存储在 context data 中

@@ -10,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.ObjectUtils;
 
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +38,9 @@ public final class FieldRegistry {
     public static final String RESTIC_RESTORE_RESULT = "RESTIC_RESTORE_RESULT";
 
     public static final String DST_DIRECTORY = "DST_DIRECTORY";
+
+    // etc: host;user;password
+    public static final String RCLONE_SFTP_CONNECTION = "RCLONE_SFTP_CONNECTION";
 
     public static final String RCLONE_COPY_RESULT = "RCLONE_COPY_RESULT";
 
@@ -113,9 +115,13 @@ public final class FieldRegistry {
                 "restic restore 的结果(单个文件则保持原样, 文件夹或多个文件/文件夹则 zip 文件",
                 "restic"
         ));
+        FieldDefinitionMap.put(RCLONE_SFTP_CONNECTION, new Definition(
+                new TypeReference<String>() {},
+                "rclone sftp connection string(host;user;password",
+                "rclone"
+        ));
         FieldDefinitionMap.put(RCLONE_COPY_RESULT, new Definition(
-                new TypeReference<CopyResult>() {
-                },
+                new TypeReference<CopyResult>() {},
                 "rclone使用copy命令返回的结果",
                 "rclone"
         ));
@@ -152,10 +158,6 @@ public final class FieldRegistry {
 
     public static Definition getMeta(String name) {
         return FieldDefinitionMap.get(name);
-    }
-
-    public static Map<String, Definition> getAllField() {
-        return Collections.unmodifiableMap(FieldDefinitionMap);
     }
 
     public record Definition(TypeReference<?> typeReference, String description, String group) {

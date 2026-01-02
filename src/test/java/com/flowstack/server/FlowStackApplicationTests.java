@@ -2,10 +2,6 @@ package com.flowstack.server;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
-import com.flowstack.server.enums.DeletedEnum;
-import com.flowstack.server.exception.BusinessException;
-import com.flowstack.server.exception.FlowException;
-import com.flowstack.server.exception.ValidationException;
 import com.flowstack.server.controller.FlowEditorController;
 import com.flowstack.server.controller.FlowInfoController;
 import com.flowstack.server.controller.ResticController;
@@ -14,6 +10,10 @@ import com.flowstack.server.core.enums.ParamSourceType;
 import com.flowstack.server.core.model.definition.FlowDefinition;
 import com.flowstack.server.core.model.definition.FlowNode;
 import com.flowstack.server.core.model.definition.ParamValue;
+import com.flowstack.server.enums.DeletedEnum;
+import com.flowstack.server.exception.BusinessException;
+import com.flowstack.server.exception.FlowException;
+import com.flowstack.server.exception.ValidationException;
 import com.flowstack.server.mapper.FlowDefinitionMapper;
 import com.flowstack.server.mapper.FlowExecutionMapper;
 import com.flowstack.server.mapper.NodeExecutionMapper;
@@ -48,6 +48,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -105,6 +106,24 @@ class FlowStackApplicationTests {
         this.flowDefinitionMapper = flowDefinitionMapper;
         this.snapshotMetaMapper = snapshotMetaMapper;
         this.flowEngine = flowEngine;
+    }
+
+    @Test
+    void SyncSFTPNodeTest() {
+        FlowNode node1 = new FlowNode(
+                "1",
+                "sync_sftp",
+                Map.of(
+                        FieldRegistry.SOURCE_DIRECTORY, new ParamValue(
+                                "/home/nopepsi-dev/IdeaProject/flowstack/src/test/resources/h2sql/", ParamSourceType.MANUAL),
+                        FieldRegistry.RCLONE_SFTP_CONNECTION, new ParamValue(
+                                "117.72.33.30;root;#dt1112728325", ParamSourceType.MANUAL),
+                        FieldRegistry.DST_DIRECTORY, new ParamValue("/root/rclone-test/", ParamSourceType.MANUAL)
+                ),
+                List.of()
+        );
+        assertDoesNotThrow(() -> this.flowEngine.executeOnce(new FlowDefinition("sync-sftp-test", List.of(node1)))
+                .get(20, TimeUnit.SECONDS));
     }
 
     @Test

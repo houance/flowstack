@@ -72,6 +72,7 @@ public class ResticUtil {
     private static void initRepository(String resticPassword, String resticRepository) {
         // build command line
         DefaultExecutor executor = DefaultExecutor.builder().get();
+        executor.setStreamHandler(new PumpStreamHandler(OutputStream.nullOutputStream()));
         try {
             int exitCode = executor.execute(
                     CommandLine.parse("restic init --json"),

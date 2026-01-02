@@ -1,0 +1,47 @@
+package com.flowstack.server.exception;
+
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import org.springframework.http.HttpStatus;
+
+
+@Data
+@EqualsAndHashCode(callSuper = false)
+public class FlowException extends RuntimeException {
+
+    private HttpStatus status;
+
+    public FlowException(HttpStatus status, String message) {
+        super(message);
+        this.status = status;
+    }
+
+    public FlowException(HttpStatus status, String message, Throwable cause) {
+        super(message, cause);
+        this.status = status;
+    }
+
+    public String getMessageRecursive() {
+        StringBuilder sb = new StringBuilder();
+        buildMessageChain(this, sb, 0);
+        return sb.toString();
+    }
+
+    @Override
+    public String toString() {
+        return getMessageRecursive();
+    }
+
+    // 递归构建完整的异常消息链
+    private static void buildMessageChain(Throwable throwable, StringBuilder sb, int depth) {
+        // 终止条件
+        if (throwable == null || depth > 20) return;
+        // <exception name> : <exception message> -> <next>
+        sb.append("%s : %s -> ".formatted(
+                throwable.getClass().getSimpleName(),
+                // 解决其他异常无具体信息问题
+                throwable instanceof FlowException ? throwable.getMessage() : throwable.toString()));
+        // 递归处理cause
+        buildMessageChain(throwable.getCause(), sb, depth + 1);
+    }
+}

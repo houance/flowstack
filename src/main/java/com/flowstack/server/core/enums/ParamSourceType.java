@@ -1,0 +1,6 @@
+package com.flowstack.server.core.enums;
+
+public enum ParamSourceType {
+    MANUAL,        // 手动设置
+    NODE_OUTPUT,  // 前置节点输出
+}

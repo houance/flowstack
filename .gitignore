@@ -1,0 +1,53 @@
+HELP.md
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+/src/test/resources/.sourceFolder-internal/
+/src/test/resources/contentWarehouse/
+/logs/
+/.mvn/
+/restic/password.txt
+/src/main/resources/secrets/
+/src/test/resources/secrets/
+/src/test/resources/secrets.properties
+/src/test/resources/backupStoragePath/
+/src/test/resources/contentParentFolder/
+/src/main/resources/secret/
+/src/test/resources/restorePath/
+/src/main/resources/backupPath/
+/src/main/resources/restorePath/
+/src/main/resources/destPath/
+/src/test/resources/sourceFolder/
+/src/test/resources/Download/
+/src/test/resources/Screenshots/
+/src/test/resources/Note11TPro/
+/logs/

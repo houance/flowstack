@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Define logging level -->
+    <property name="GLOBAL_LOG_LEVEL" value="DEBUG"/>
+
+    <!-- Define log directory -->
+    <property name="logDir" value="logs"/>
+
+    <!-- Console Appender: Output logs to the console -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <!-- Encoder to format the log messages -->
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} | %-5p | %c{1} | %L lines | %thread | %m%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Rolling File Appender: Log to file with rolling -->
+    <appender name="ROLLING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${logDir}/app.log</file>
+        <!-- 滚动策略 -->
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${logDir}/app-%d{yyyy-MM-dd}-%i.log.gz</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
+            <maxHistory>30</maxHistory>
+        </rollingPolicy>
+        <!-- 输出格式 -->
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} | %-5p | %c{1} | %L | %thread | %m%n</pattern>
+        </encoder>
+        <!-- 使用 ThresholdFilter 设置文件输出级别为 INFO -->
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>INFO</level>
+        </filter>
+    </appender>
+
+    <!-- Root Logger: Set the log level to INFO and bind appends -->
+    <root level="${GLOBAL_LOG_LEVEL}">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="ROLLING_FILE"/>
+    </root>
+
+</configuration>

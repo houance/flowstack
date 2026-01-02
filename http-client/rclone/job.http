@@ -1,8 +1,0 @@
-POST http://nopepsi:0608@192.168.28.199:5572/job/status
-Content-Type: application/json
-
-{
-  "jobid": 64
-}
-
-###

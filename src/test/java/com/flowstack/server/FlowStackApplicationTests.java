@@ -30,6 +30,7 @@ import com.flowstack.server.model.db.SnapshotMetaEntity;
 import com.flowstack.server.node.registry.FieldRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -129,19 +130,21 @@ class FlowStackApplicationTests {
     @Test
     void GetAllSnapshotsTest() throws IOException {
         this.CreateDataInDB();
-        FlowResponse<List<SnapshotMetaEntity>> result = this.resticController.getAllSnapshot();
+        FlowResponse<List<SnapshotMetaEntity>> result = this.resticController.getAllSnapshots();
         Assertions.assertEquals(200, result.getStatusCode());
         assertTrue(CollectionUtils.isNotEmpty(result.getData()));
-        FlowResponse<List<SnapshotItemDTO>> ls = this.resticController.getSnapshotItem(result.getData().get(0), "/");
+        FlowResponse<List<SnapshotItemDTO>> ls = this.resticController.getSnapshotItems(result.getData().get(0), "/");
         Assertions.assertEquals(200, ls.getStatusCode());
         assertTrue(CollectionUtils.isNotEmpty(ls.getData()));
-        ResponseEntity<Resource> responseEntity = this.resticController.download(
+        String jobId = this.resticController.submitDownloadJob(
                 new RestoreRequest(
                         result.getData().get(0),
                         ls.getData()
-                ),
-                false
-        );
+                )
+        ).getData();
+        assertTrue(StringUtils.isNotBlank(jobId));
+        waitSec(10);
+        ResponseEntity<Object> responseEntity = this.resticController.getDownloadResult(jobId, false);
         assertEquals(200, responseEntity.getStatusCode().value());
         ContentDisposition contentDisposition = responseEntity.getHeaders().getContentDisposition();
         assertNotNull(contentDisposition);
@@ -149,7 +152,7 @@ class FlowStackApplicationTests {
         assertNotNull(contentDisposition.getFilename());
         assertTrue(contentDisposition.getFilename().contains("zip"));
         assertNotNull(responseEntity.getBody());
-        assertTrue(responseEntity.getBody().contentLength() > 0);
+        assertTrue(((Resource) responseEntity.getBody()).contentLength() > 0);
     }
 
     @Test

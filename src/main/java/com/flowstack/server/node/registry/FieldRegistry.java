@@ -117,7 +117,7 @@ public final class FieldRegistry {
         ));
         FieldDefinitionMap.put(RCLONE_SFTP_CONNECTION, new Definition(
                 new TypeReference<String>() {},
-                "rclone sftp connection string(host;user;password",
+                "rclone sftp 连接信息(host;user;password)",
                 "rclone"
         ));
         FieldDefinitionMap.put(RCLONE_COPY_RESULT, new Definition(

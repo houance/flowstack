@@ -8,6 +8,7 @@ import com.flowstack.server.core.model.definition.ParamValue;
 import com.flowstack.server.core.model.execution.FlowContext;
 import com.flowstack.server.enums.DeletedEnum;
 import com.flowstack.server.exception.BusinessException;
+import com.flowstack.server.exception.ValidationException;
 import com.flowstack.server.mapper.SnapshotMetaMapper;
 import com.flowstack.server.model.SystemSettings;
 import com.flowstack.server.model.api.global.FlowResponse;
@@ -19,9 +20,9 @@ import com.flowstack.server.node.restic.model.SnapshotNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
-import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -30,7 +31,8 @@ import java.net.MalformedURLException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
+import java.util.UUID;
+import java.util.concurrent.*;
 
 @RestController
 @Slf4j
@@ -41,17 +43,18 @@ public class ResticController {
     private final FlowEngine flowEngine;
     private final SystemSettings systemSettings;
     private final SnapshotMetaMapper snapshotMetaMapper;
+    private final ConcurrentHashMap<String, Future<FlowContext>> downloadJobResultMap = new ConcurrentHashMap<>();
 
-    @GetMapping("/get-all-snapshot")
-    public FlowResponse<List<SnapshotMetaEntity>> getAllSnapshot() {
+    @GetMapping("/get-all-snapshots")
+    public FlowResponse<List<SnapshotMetaEntity>> getAllSnapshots() {
         LambdaQueryWrapper<SnapshotMetaEntity> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(SnapshotMetaEntity::getRecordDeleted, DeletedEnum.NOT_DELETED.getCode());
         queryWrapper.isNotNull(SnapshotMetaEntity::getSnapshotId);
         return FlowResponse.success(this.snapshotMetaMapper.selectList(queryWrapper));
     }
 
-    @PostMapping("/get-snapshot-item")
-    public FlowResponse<List<SnapshotItemDTO>> getSnapshotItem(
+    @PostMapping("/get-snapshot-items")
+    public FlowResponse<List<SnapshotItemDTO>> getSnapshotItems(
             @RequestBody SnapshotMetaEntity snapshotMetaEntity,
             @RequestParam(value = "filter", defaultValue = "/") String filter) {
         FlowDefinition tempFlow = buildLsFlow(snapshotMetaEntity, filter);
@@ -90,10 +93,14 @@ public class ResticController {
         ));
     }
 
-    @PostMapping("/download-restore-file")
-    public ResponseEntity<Resource> download(
-            @RequestBody RestoreRequest restoreRequest,
-            @RequestParam("preview") Boolean isPreview) {
+    @PostMapping("/submit-download-job")
+    public FlowResponse<String> submitDownloadJob(@RequestBody RestoreRequest restoreRequest) {
+        if (ObjectUtils.anyNull(
+                restoreRequest,
+                restoreRequest.getSnapshotMetaEntity(),
+                restoreRequest.getSnapshotItemDTOList())) {
+            throw new ValidationException("restore request, snapshotMetaEntity 或 snapshotItemDTOList is null");
+        }
         // 将 item 转换为 nodes
         List<SnapshotNode> snapshotNodes = restoreRequest.getSnapshotItemDTOList().stream()
                 .map(n -> new SnapshotNode()
@@ -101,45 +108,11 @@ public class ResticController {
                         .setPath(n.getPath())
                         .setType(n.getType()))
                 .toList();
-        FlowDefinition tempFlow = buildRestoreFlow(restoreRequest, snapshotNodes);
-        FlowContext context;
-        try {
-            context = this.flowEngine.executeOnce(tempFlow).get();
-        } catch (InterruptedException | ExecutionException e) {
-            throw new BusinessException("restore 执行失败", e.getCause());
-        }
-        Path file = FieldRegistry.getValue(FieldRegistry.RESTIC_RESTORE_RESULT, context);
-        UrlResource urlResource;
-        try {
-            urlResource = new UrlResource(file.toUri());
-        } catch (MalformedURLException e) {
-            throw new BusinessException(("getDownloadFiles failed. " +
-                    "restoreFile:%s can't convert to url.").formatted(file), e);
-        }
-        String fileName = file.getFileName().toString();
-        // 不是 preview 则直接返回文件
-        if (!isPreview) {
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=\"" + fileName + "\"")
-                    .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(urlResource);
-        }
-        // 是预览则判断 media type 并返回二进制流
-        MediaType mediaType = determineContentType(fileName);
-        if (ObjectUtils.isEmpty(mediaType)) {
-            throw new BusinessException("previewFile failed. fileType not supported.");
-        }
-        return ResponseEntity.ok()
-                .contentType(mediaType)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"")
-                .body(urlResource);
-    }
-
-    private FlowDefinition buildRestoreFlow(RestoreRequest restoreRequest, List<SnapshotNode> snapshotNodes) {
+        // 生成唯一 ID
+        String uuid = UUID.randomUUID().toString();
+        // 提交 restore 任务
         SnapshotMetaEntity snapshotMetaEntity = restoreRequest.getSnapshotMetaEntity();
-        return new FlowDefinition("restic-ls-temp", List.of(
+        FlowDefinition restoreFlow = new FlowDefinition("restic-ls-temp", List.of(
                 new FlowNode(
                         "1",
                         "restore",
@@ -154,6 +127,68 @@ public class ResticController {
                         List.of()
                 )
         ));
+        Future<FlowContext> task = this.flowEngine.executeOnce(restoreFlow);
+        this.downloadJobResultMap.put(uuid, task);
+        // 返回 uuid
+        return FlowResponse.success(uuid);
+    }
+
+    @PostMapping("/get-download-result")
+    public ResponseEntity<Object> getDownloadResult(
+            @RequestParam("jobId") String jobId,
+            @RequestParam("isPreview") Boolean isPreview) {
+        if (!downloadJobResultMap.containsKey(jobId)) {
+            return ResponseEntity
+                    .status(HttpStatus.GONE)
+                    .body("restore file is delete");
+        }
+        Future<FlowContext> task = downloadJobResultMap.get(jobId);
+        if (!task.isDone()) {
+            return ResponseEntity
+                    .status(HttpStatus.ACCEPTED)
+                    .header("Retry-After", "5")
+                    .body("not complete");
+        }
+        FlowContext context;
+        try {
+            context = task.get(5, TimeUnit.SECONDS);
+        } catch (TimeoutException | InterruptedException | ExecutionException e) {
+            // 删除 task
+            this.downloadJobResultMap.remove(jobId);
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("server side error. ex %s".formatted(e.getMessage()));
+        }
+        Path file = FieldRegistry.getValue(FieldRegistry.RESTIC_RESTORE_RESULT, context);
+        UrlResource urlResource;
+        try {
+            urlResource = new UrlResource(file.toUri());
+        } catch (MalformedURLException e) {
+            return ResponseEntity
+                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(("path can't convert to url. ex is %s").formatted(e.getMessage()));
+        }
+        String fileName = file.getFileName().toString();
+        // 不是 preview 则直接返回文件
+        if (!isPreview) {
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + fileName + "\"")
+                    .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(urlResource);
+        }
+        // 是预览则判断 media type 并返回二进制流
+        MediaType mediaType = determineContentType(fileName);
+        if (ObjectUtils.isEmpty(mediaType)) {
+            return ResponseEntity
+                    .status(HttpStatus.NOT_IMPLEMENTED)
+                    .body("fileType not supported.");
+        }
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"")
+                .body(urlResource);
     }
 
     private MediaType determineContentType(String filename) {

@@ -12,6 +12,5 @@ import java.util.List;
 @AllArgsConstructor
 public class RestoreRequest {
     private SnapshotMetaEntity snapshotMetaEntity;
-
     private List<SnapshotItemDTO> snapshotItemDTOList;
 }

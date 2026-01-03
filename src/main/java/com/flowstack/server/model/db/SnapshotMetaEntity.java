@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.experimental.Accessors;
@@ -23,6 +25,7 @@ public class SnapshotMetaEntity extends BaseEntity {
      * 快照元数据ID，主键
      */
     @TableId(value = "snapshot_meta_id", type = IdType.AUTO)
+    @JsonSerialize(using = ToStringSerializer.class)
     private Long snapshotMetaId;
 
     /**
@@ -53,18 +56,21 @@ public class SnapshotMetaEntity extends BaseEntity {
      * 文件数量
      */
     @TableField("file_count")
+    @JsonSerialize(using = ToStringSerializer.class)
     private BigInteger fileCount;
 
     /**
      * 文件夹数量
      */
     @TableField("dir_count")
+    @JsonSerialize(using = ToStringSerializer.class)
     private BigInteger dirCount;
 
     /**
      * 快照大小（字节）
      */
     @TableField("snapshot_size_bytes")
+    @JsonSerialize(using = ToStringSerializer.class)
     private BigInteger snapshotSizeBytes;
 
     /**

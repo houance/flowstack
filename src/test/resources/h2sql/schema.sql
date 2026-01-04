@@ -51,6 +51,7 @@ CREATE TABLE
                        flow_definition_id bigint(20) NOT NULL,
                        flow_execution_id bigint(20) NOT NULL,
                        node_id VARCHAR(100) NOT NULL, -- dag 内唯一
+                       node_name VARCHAR(50) NOT NULL,
                        execution_status VARCHAR(20) NOT NULL, -- pending, running, success, failed, cancelled
                        input_data JSON NOT NULL, -- 输入参数
                        output_data JSON, -- 输出参数
@@ -64,20 +65,20 @@ CREATE TABLE
 DROP TABLE IF EXISTS snapshot_meta;
 CREATE TABLE
     snapshot_meta (
-                       snapshot_meta_id BIGINT(20) AUTO_INCREMENT,
-                       created_user varchar(255) not null,
-                       created_time TIMESTAMP not null DEFAULT CURRENT_TIMESTAMP(),
-                       last_updated_user varchar(255) not null,
-                       last_updated_time TIMESTAMP not null DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP(),
-                       record_deleted int(11) DEFAULT 0,
-                       source_directory varchar(255) not null,
-                       backup_repository bigint(20) NOT NULL,
-                       create_at timestamp NOT NULL,
-                       snapshot_id VARCHAR(200) NOT NULL,
-                       file_count bigint(20),
-                       dir_count bigint(20),
-                       snapshot_size_bytes bigint(20),
-                       hostname varchar(200),
-                       username varchar(200),
-                       PRIMARY KEY (`snapshot_meta_id`)
+                      snapshot_meta_id BIGINT(20) AUTO_INCREMENT,
+                      created_user varchar(255) not null,
+                      created_time TIMESTAMP not null DEFAULT CURRENT_TIMESTAMP(),
+                      last_updated_user varchar(255) not null,
+                      last_updated_time TIMESTAMP not null DEFAULT CURRENT_TIMESTAMP() ON UPDATE CURRENT_TIMESTAMP(),
+                      record_deleted int(1) DEFAULT 0,
+                      source_directory varchar(400) not null,
+                      backup_repository varchar(400) NOT NULL,
+                      created_at timestamp NOT NULL,
+                      snapshot_id VARCHAR(200) NOT NULL,
+                      file_count bigint(20),
+                      dir_count bigint(20),
+                      snapshot_size_bytes bigint(20),
+                      hostname varchar(200),
+                      username varchar(200),
+                      PRIMARY KEY (`snapshot_meta_id`)
 ) ENGINE = InnoDB AUTO_INCREMENT = 1 DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;

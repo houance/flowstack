@@ -63,6 +63,9 @@ public class ResticController {
     public FlowResponse<List<SnapshotItemDTO>> getSnapshotItems(
             @RequestBody SnapshotMetaEntity snapshotMetaEntity,
             @RequestParam(value = "filter", defaultValue = "/") String filter) {
+        // 归一化 filter, 去掉尾部一个或多个斜杠
+        String finalFilter = filter.equals("/") ? filter : filter.replaceAll("/+$", "");
+        // 执行 ls
         FlowDefinition tempFlow = buildLsFlow(snapshotMetaEntity, filter);
         FlowContext context;
         try {
@@ -72,6 +75,7 @@ public class ResticController {
         }
         List<SnapshotNode> snapshotNodes = FieldRegistry.getValue(FieldRegistry.RESTIC_SNAPSHOT_NODES, context);
         return FlowResponse.success(snapshotNodes.stream()
+                .filter(n -> !n.getPath().equals(finalFilter)) // 去掉 filter 本身, 也就是当前文件夹
                 .map(n -> new SnapshotItemDTO(
                         n.getName(),
                         n.getType(),

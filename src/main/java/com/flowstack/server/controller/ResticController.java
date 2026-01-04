@@ -17,6 +17,8 @@ import com.flowstack.server.model.api.snapshot.SnapshotItemDTO;
 import com.flowstack.server.model.db.SnapshotMetaEntity;
 import com.flowstack.server.node.registry.FieldRegistry;
 import com.flowstack.server.node.restic.model.SnapshotNode;
+import com.flowstack.server.util.FilesystemUtil;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
@@ -25,10 +27,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.MalformedURLException;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -44,6 +49,7 @@ public class ResticController {
     private final SystemSettings systemSettings;
     private final SnapshotMetaMapper snapshotMetaMapper;
     private final ConcurrentHashMap<String, Future<FlowContext>> downloadJobResultMap = new ConcurrentHashMap<>();
+    private final TaskScheduler generalTaskScheduler;
 
     @GetMapping("/get-all-snapshots")
     public FlowResponse<List<SnapshotMetaEntity>> getAllSnapshots() {
@@ -185,6 +191,14 @@ public class ResticController {
                     .status(HttpStatus.NOT_IMPLEMENTED)
                     .body("fileType not supported.");
         }
+        // 30 分钟后删除 task, 删除 file 的目录
+        this.generalTaskScheduler.schedule(
+                () -> {
+                    this.downloadJobResultMap.remove(jobId);
+                    FilesystemUtil.deleteFileParentDir(file);
+                },
+                Instant.now().plus(30, ChronoUnit.MINUTES)
+        );
         return ResponseEntity.ok()
                 .contentType(mediaType)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + fileName + "\"")
@@ -203,5 +217,10 @@ public class ResticController {
             // ... 可以添加更多支持的类型
             default -> null;
         };
+    }
+
+    @PostConstruct
+    protected void clearTempDir() {
+        FilesystemUtil.clearTempDirWithPrefix("restore");
     }
 }

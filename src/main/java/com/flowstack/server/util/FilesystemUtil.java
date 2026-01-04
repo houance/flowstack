@@ -3,25 +3,63 @@ package com.flowstack.server.util;
 import com.flowstack.server.exception.BusinessException;
 import com.flowstack.server.exception.ValidationException;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.CollectionUtils;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ObjectUtils;
+import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.file.*;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Random;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Collection;
+import java.util.List;
+import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 @Slf4j
 @Component
 public class FilesystemUtil {
+    private static final RandomStringUtils RANDOM_STRING_UTILS = RandomStringUtils.insecure();
 
-    private static final String ALL_LETTER = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    public static void clearTempDirWithPrefix(String prefix) {
+        List<Path> dirStartWithPrefix;
+        try (Stream<Path> list = Files.list(FileUtils.getTempDirectory().toPath())) {
+            dirStartWithPrefix = list
+                    .filter(path -> (Files.isDirectory(path) && path.getFileName().toString().startsWith(prefix)))
+                    .toList();
+        } catch (IOException e) {
+            throw new BusinessException("获取临时目录下所有 %s 开头的失败".formatted(prefix), e);
+        }
+        if (CollectionUtils.isEmpty(dirStartWithPrefix)) {
+            return;
+        }
+        for (Path dir : dirStartWithPrefix) {
+            try {
+                FileUtils.deleteDirectory(dir.toFile());
+            } catch (IOException e) {
+                throw new BusinessException("删除目录 %s 失败".formatted(dir.toString()), e);
+            }
+        }
+    }
 
-    private static final Random RANDOM = new Random();
-
-    private static final int NAME_LENGTH = 9;
+    public static void deleteFileParentDir(Path file) {
+        if (ObjectUtils.isEmpty(file) || !Files.exists(file)) {
+            return;
+        }
+        try {
+            FileUtils.deleteDirectory(file.getParent().toFile());
+        } catch (IOException e) {
+            throw new BusinessException("删除文件 %s 的目录失败".formatted(file.getParent().toString()), e);
+        }
+    }
 
     public static Path isFolderPathValid(
             String folderPathString) throws ValidationException, BusinessException {
@@ -43,51 +81,36 @@ public class FilesystemUtil {
             throws ValidationException, BusinessException {
         // 检查参数
         Path folder = isFolderPathValid(folderPathString);
-        // 获取随机zip文件名称
-        StringBuilder sb = new StringBuilder(prefix + "-");
-        for (int i = 0; i < NAME_LENGTH; i++) {
-            int index = RANDOM.nextInt(ALL_LETTER.length());
-            sb.append(ALL_LETTER.charAt(index));
-        }
-        Path zipFile;
-        try {
-            zipFile = folder.resolve(sb.append(".zip").toString());
-        } catch (Exception e) {
-            throw new BusinessException("zipAllFile resolve path failed.", e);
-        }
-        // 遍历所有文件和文件夹
-        try (ZipOutputStream zos = new ZipOutputStream(Files.newOutputStream(zipFile))) {
-            Files.walkFileTree(folder, new SimpleFileVisitor<>() {
-                @Override
-                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                    // 跳过ZIP文件自身
-                    if (dir.equals(zipFile)) {
-                        return FileVisitResult.SKIP_SUBTREE;
-                    }
-                    // 计算相对路径
-                    String zipEntryName = folder.relativize(dir).toString().replace("\\", "/");
-                    if (!zipEntryName.isEmpty()) {
-                        zos.putNextEntry(new ZipEntry(zipEntryName + "/"));
-                        zos.closeEntry();
-                    }
-                    return FileVisitResult.CONTINUE;
+        // 使用 RandomStringUtils 生成随机文件名
+        String randomName = RANDOM_STRING_UTILS.nextAlphanumeric(9);
+        String zipFileName = String.format("%s-%s.zip", prefix, randomName);
+        // 创建 zip file
+        Path zipFile = folder.resolve(zipFileName);
+        try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipFile.toFile()))) {
+            // 使用 FileUtils 获取所有文件
+            Collection<File> files = FileUtils.listFiles(
+                    folder.toFile(),
+                    null,  // 所有文件类型
+                    true   // 递归获取
+            );
+            for (File file : files) {
+                // 跳过ZIP文件自身
+                if (file.toPath().equals(zipFile)) {
+                    continue;
                 }
-
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    // 跳过ZIP文件自身
-                    if (file.equals(zipFile)) {
-                        return FileVisitResult.SKIP_SUBTREE;
-                    }
-                    // 计算相对路径
-                    String zipEntryName = folder.relativize(file).toString().replace("\\", "/");
-                    // 处理文件：写入ZIP条目
-                    zos.putNextEntry(new ZipEntry(zipEntryName));
-                    Files.copy(file, zos);
-                    zos.closeEntry();
-                    return FileVisitResult.CONTINUE;
+                // 计算相对路径
+                String relativePath = folder.relativize(file.toPath())
+                        .toString()
+                        .replace("\\", "/");
+                // 创建ZIP条目
+                ZipEntry zipEntry = new ZipEntry(relativePath);
+                zos.putNextEntry(zipEntry);
+                // 复制文件到 zip file 中
+                try (FileInputStream fis = new FileInputStream(file)) {
+                    IOUtils.copy(fis, zos);
                 }
-            });
+                zos.closeEntry();
+            }
         } catch (IOException e) {
             throw new BusinessException("zipAllFile failed.", e);
         }
